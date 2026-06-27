@@ -53,18 +53,18 @@
 
         <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3">
             <div class="flex gap-2">
-                <input type="text" id="itemInput" placeholder="Add an item..." required 
+                <input type="text" id="itemInput" placeholder="Add custom item..." required 
                     class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 <button type="submit" class="bg-emerald-500 text-slate-950 px-5 rounded-xl text-sm font-bold active:scale-95 transition-all">Add</button>
             </div>
             <div>
                 <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Family Assignment</label>
                 <select id="familySelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none">
+                    <option value="Shared / Everyone">Shared / Everyone</option>
                     <option value="Naveen & Nagamani">Naveen & Nagamani</option>
                     <option value="Pawan & Snehal">Pawan & Snehal</option>
                     <option value="Arjun & Manasa">Arjun & Manasa</option>
                     <option value="Sumanth & Anagha">Sumanth & Anagha</option>
-                    <option value="Shared / Everyone">Shared / Everyone</option>
                 </select>
             </div>
         </form>
@@ -76,16 +76,14 @@
                 <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
                     ✅ Completed Items Ledger
                 </h2>
-                <button onclick="clearCompletedLedger()" class="text-[10px] bg-rose-950/40 border border-rose-900/60 text-rose-400 px-2 py-1 rounded-lg font-bold hover:bg-rose-900/60 transition-colors">
-                    Clear Finished
-                </button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs border-collapse">
                     <thead>
                         <tr class="border-b border-slate-800 text-slate-500 font-bold">
-                            <th class="py-2 px-1">Item Description</th>
-                            <th class="py-2 px-2 text-right">Assigned Family</th>
+                            <th class="py-2 px-1">Status / Item</th>
+                            <th class="py-2 px-2">Assigned Family</th>
+                            <th class="py-2 px-1 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody id="completedTableBody" class="divide-y divide-slate-900 text-slate-400"></tbody>
@@ -98,7 +96,7 @@
         <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
             <h3 class="text-base font-bold text-slate-100 mb-1">📦 Create New Category Tab</h3>
             <p class="text-xs text-slate-500 mb-4">Add a custom list folder for the camping trip.</p>
-            <input type="text" id="newTabNameInput" placeholder="e.g., Activities, Drinks, Packing" 
+            <input type="text" id="newTabNameInput" placeholder="e.g., Activities, Drinks" 
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 mb-4">
             <div class="flex gap-2 justify-end">
                 <button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 rounded-xl">Cancel</button>
@@ -117,7 +115,6 @@
             appId: "1:604104876961:web:6e556bd1fd74c6c35161e0"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -126,169 +123,22 @@
         let globalTabs = ['packing', 'meals'];
         let globalTabNames = { packing: '📦 Packing', meals: '🍳 Meals' };
 
-        // 1. Listen for Realtime Sync Stream changes from Firebase Firestore
-        db.collection("camping_config").doc("tabs").onSnapshot((doc) => {
-            if (doc.exists) {
-                const data = doc.data();
-                globalTabs = data.lists || ['packing', 'meals'];
-                globalTabNames = data.listNames || { packing: '📦 Packing', meals: '🍳 Meals' };
-            } else {
-                // Initialize default database template layout structural fields
-                db.collection("camping_config").doc("tabs").set({
-                    lists: ['packing', 'meals'],
-                    listNames: { packing: '📦 Packing', meals: '🍳 Meals' }
-                });
-            }
-            if (!globalTabs.includes(currentActiveTab)) {
-                currentActiveTab = globalTabs[0] || 'packing';
-            }
-            renderTabs();
-            renderList();
-        });
-
-        db.collection("camping_items").onSnapshot((snapshot) => {
-            globalItems = [];
-            snapshot.forEach((doc) => {
-                globalItems.push({ id: doc.id, ...doc.data() });
-            });
-            renderList();
-        });
-
-        // 2. Structural Rendering Pipelines
-        function renderTabs() {
-            const container = document.getElementById('tabsContainer');
-            container.innerHTML = '';
-            globalTabs.forEach(key => {
-                const btn = document.createElement('button');
-                btn.onclick = () => { currentActiveTab = key; renderTabs(); renderList(); };
-                btn.className = currentActiveTab === key
-                    ? "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950 shrink-0 shadow-md"
-                    : "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400 shrink-0";
-                btn.innerText = globalTabNames[key] || key;
-                container.appendChild(btn);
-            });
-        }
-
-        function renderList() {
-            const container = document.getElementById('categoriesContainer');
-            const tableBody = document.getElementById('completedTableBody');
-            container.innerHTML = ''; tableBody.innerHTML = '';
-
-            const currentTabTodos = globalItems.filter(item => item.listKey === currentActiveTab);
-            const pendingItems = currentTabTodos.filter(t => !t.completed);
-            const completedItems = currentTabTodos.filter(t => t.completed);
-
-            const grouped = pendingItems.reduce((acc, todo) => {
-                if (!acc[todo.category]) acc[todo.category] = [];
-                acc[todo.category].push(todo);
-                return acc;
-            }, {});
-
-            if (pendingItems.length === 0) {
-                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending items here. Add some below!</div>`;
-            }
-
-            for (const familyGroup in grouped) {
-                const familyDiv = document.createElement('div');
-                familyDiv.className = "bg-slate-900/40 border border-slate-900 rounded-2xl p-4 shadow-sm";
-                
-                const title = document.createElement('h2');
-                title.className = "text-[11px] font-extrabold text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5";
-                title.innerHTML = `👥 ${familyGroup}`;
-                familyDiv.appendChild(title);
-
-                const ul = document.createElement('ul'); ul.className = "space-y-2.5";
-                
-                grouped[familyGroup].forEach(todo => {
-                    const li = document.createElement('li');
-                    li.className = "flex items-center justify-between p-3 bg-slate-950/60 border border-slate-900/50 rounded-xl gap-2";
-                    
-                    const label = document.createElement('label');
-                    label.className = "flex items-center gap-3 cursor-pointer text-sm flex-1 text-slate-200";
-                    
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox'; checkbox.checked = todo.completed;
-                    checkbox.className = "w-5 h-5 rounded-lg border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0";
-                    checkbox.onchange = () => {
-                        db.collection("camping_items").doc(todo.id).update({ completed: checkbox.checked });
-                    };
-
-                    label.appendChild(checkbox);
-                    label.appendChild(document.createTextNode(todo.text));
-                    li.appendChild(label);
-
-                    const delBtn = document.createElement('button');
-                    delBtn.innerHTML = '✕'; delBtn.className = "text-slate-700 hover:text-rose-400 px-2 text-xs";
-                    delBtn.onclick = () => { db.collection("camping_items").doc(todo.id).delete(); };
-                    li.appendChild(delBtn); ul.appendChild(li);
-                });
-                familyDiv.appendChild(ul); container.appendChild(familyDiv);
-            }
-
-            if (completedItems.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-600 italic">No items checked off yet.</td></tr>`;
-            } else {
-                completedItems.forEach(todo => {
-                    const tr = document.createElement('tr'); tr.className = "hover:bg-slate-900/40 transition-colors";
-                    const tdText = document.createElement('td'); tdText.className = "py-2.5 px-1 line-through text-slate-500 max-w-[200px] truncate"; tdText.innerText = todo.text;
-                    const tdFamily = document.createElement('td'); tdFamily.className = "py-2.5 px-2 text-right text-emerald-500/80 font-medium"; tdFamily.innerText = todo.category;
-                    tr.appendChild(tdText); tr.appendChild(tdFamily); tableBody.appendChild(tr);
-                });
-            }
-
-            const total = currentTabTodos.length;
-            const completed = completedItems.length;
-            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
-            document.getElementById('progressBar').style.width = `${percent}%`;
-            document.getElementById('progressText').innerText = `${percent}% done`;
-        }
-
-        // 3. Document Action Elements Pipeline Interceptors
-        document.getElementById('todoForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('itemInput');
-            const familyCategory = document.getElementById('familySelect').value;
-            
-            db.collection("camping_items").add({
-                text: input.value.trim(),
-                completed: false,
-                category: familyCategory,
-                listKey: currentActiveTab,
-                createdAt: Date.now()
-            });
-            input.value = ''; input.blur();
-        });
-
-        function submitNewTab() {
-            const modalInput = document.getElementById('newTabNameInput');
-            const name = modalInput.value.trim();
-            if (!name) return;
-            const sanitizedKey = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-            
-            if (globalTabs.includes(sanitizedKey)) { alert("This category already exists!"); return; }
-            
-            globalTabs.push(sanitizedKey);
-            globalTabNames[sanitizedKey] = name;
-            currentActiveTab = sanitizedKey;
-            
-            db.collection("camping_config").doc("tabs").update({
-                lists: globalTabs,
-                listNames: globalTabNames
-            });
-            closeModal();
-        }
-
-        function clearCompletedLedger() {
-            if (confirm("Permanently delete completed items from this list?")) {
-                const currentTabTodos = globalItems.filter(item => item.listKey === currentActiveTab && item.completed);
-                currentTabTodos.forEach(todo => {
-                    db.collection("camping_items").doc(todo.id).delete();
-                });
-            }
-        }
-
-        function openModal() { document.getElementById('customTabModal').classList.remove('hidden'); document.getElementById('newTabNameInput').focus(); }
-        function closeModal() { document.getElementById('customTabModal').classList.add('hidden'); document.getElementById('newTabNameInput').value = ''; }
-    </script>
-</body>
-</html>
+        // Default item list sorted intelligently by functional priority
+        const defaultPackingItems = [
+            // Priority 1: Critical Documents & Identity
+            { text: "🚨 ID Card", priority: 1 },
+            { text: "🚨 Passport", priority: 2 },
+            { text: "🚨 Health Insurance Card", priority: 3 },
+            { text: "🚨 Driving Licence", priority: 4 },
+            { text: "🎫 Vignette (Toll Tax)", priority: 5 },
+            // Priority 2: Core Survival Shelters & Sleep Infrastructure
+            { text: "🎪 Tent", priority: 6 },
+            { text: "🔩 Pegs and Tensioning Strings", priority: 7 },
+            { text: "🛏️ Insulated Camping Mats", priority: 8 },
+            { text: "😴 Sleeping Bag", priority: 9 },
+            { text: "💤 Pillows", priority: 10 },
+            // Priority 3: Utility Connections & Electric Gear
+            { text: "🔌 Electric Cord (Initial connection from box)", priority: 11 },
+            { text: "🔌 Indian to EU/Universal conversion Plug", priority: 12 },
+            { text: "🔋 Mobile / Tab / iPad / Laptop Chargers", priority: 13 },
+            { text: "💡 Camping Light", priority: 14
