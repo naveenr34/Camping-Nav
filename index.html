@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Camping Sync Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-12">
+
+    <div class="max-w-md mx-auto px-4 pt-8">
+        <div class="bg-gradient-to-br from-indigo-600 to-emerald-600 p-6 rounded-3xl shadow-xl mb-6 relative overflow-hidden">
+            <h1 class="text-2xl font-bold tracking-tight">🌲 Family Camping Hub</h1>
+            <p class="text-indigo-100 text-xs font-medium mt-1 uppercase tracking-widest">July 4th – July 8th</p>
+            
+            <div class="mt-5 bg-slate-950/40 rounded-full h-3 w-full overflow-hidden p-0.5 border border-white/10">
+                <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-indigo-300 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+                <span class="text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300 animate-pulse">● Live Family Sync Active</span>
+                <p id="progressText" class="text-xs font-bold text-white">0% done</p>
+            </div>
+        </div>
+
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-1">
+            <button onclick="switchList('packing')" id="tab-packing" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950">📦 Packing</button>
+            <button onclick="switchList('meals')" id="tab-meals" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🍳 Meals</button>
+            <button onclick="switchList('tasks')" id="tab-tasks" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🪵 Tasks</button>
+        </div>
+
+        <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3 backdrop-blur-md">
+            <div class="flex gap-2">
+                <input type="text" id="itemInput" placeholder="Add an item..." required 
+                    class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                <button type="submit" class="bg-emerald-500 text-slate-950 px-5 rounded-xl text-sm font-bold active:scale-95 transition-all">Add</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Family Group</label>
+                    <select id="familySelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 focus:outline-none">
+                        <option value="Shashi Bushana Family">Shashi Bushana Family</option>
+                        <option value="Family 2">Family 2</option>
+                        <option value="Family 3">Family 3</option>
+                        <option value="Shared / Everyone">Shared / Everyone</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Specific Person</label>
+                    <input type="text" id="assigneeInput" placeholder="Name (Optional)" 
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+        </form>
+
+        <div id="categoriesContainer" class="space-y-4">
+            <div class="text-center py-8 text-slate-600 text-sm">Syncing family data streams...</div>
+        </div>
+    </div>
+
+    <script>
+        // High-performance independent data pool
+        const DB_KEY = "camping_hub_family_sync_2026_v4";
+        const API_URL = `https://api.restful-api.dev/objects/${DB_KEY}`;
+
+        let appState = {
+            activeList: 'packing',
+            packing: [
+                { id: 1, text: "6-Person Family Tent & Stakes", completed: false, category: "Shashi Bushana Family", assignee: "Naveen" },
+                { id: 2, text: "Sleeping Mats & Air Pump", completed: false, category: "Shared / Everyone", assignee: "Everyone" }
+            ],
+            meals: [
+                { id: 3, text: "Marinated BBQ Meats", completed: false, category: "Family 2", assignee: "" }
+            ],
+            tasks: [
+                { id: 4, text: "Collect dry firewood supply", completed: false, category: "Shared / Everyone", assignee: "" }
+            ]
+        };
+
+        async function loadCloudData() {
+            try {
+                const res = await fetch(API_URL);
+                if (res.ok) {
+                    const json = await res.json();
+                    if(json.data) {
+                        const currentTab = appState.activeList;
+                        appState = JSON.parse(json.data);
+                        appState.activeList = currentTab;
+                    }
+                } else {
+                    await saveCloudData();
+                }
+                renderList();
+            } catch (e) { renderList(); }
+        }
+
+        async function saveCloudData() {
+            renderList();
+            try {
+                await fetch(`https://api.restful-api.dev/objects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingData", data: JSON.stringify(appState) })
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        function switchList(listName) {
+            appState.activeList = listName;
+            ['packing', 'meals', 'tasks'].forEach(tab => {
+                document.getElementById(`tab-${tab}`).className = tab === listName ? "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950" : "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400";
+            });
+            renderList();
+        }
+
+        function renderList() {
+            const container = document.getElementById('categoriesContainer');
+            container.innerHTML = '';
+            const currentTodos = appState[appState.activeList] || [];
+            
+            // Group items by Family
+            const grouped = currentTodos.reduce((acc, todo) => {
+                if (!acc[todo.category]) acc[todo.category] = [];
+                acc[todo.category].push(todo);
+                return acc;
+            }, {});
+
+            if (Object.keys(grouped).length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No items added to this list yet.</div>`;
+            }
+
+            for (const familyGroup in grouped) {
+                const familyDiv = document.createElement('div');
+                familyDiv.className = "bg-slate-900/40 border border-slate-900 rounded-2xl p-4 shadow-sm";
+                
+                const title = document.createElement('h2');
+                title.className = "text-[11px] font-extrabold text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5";
+                title.innerHTML = `👥 ${familyGroup}`;
+                familyDiv.appendChild(title);
+
+                const ul = document.createElement('ul');
+                ul.className = "space-y-2.5";
+                
+                grouped[familyGroup].forEach(todo => {
+                    const li = document.createElement('li');
+                    li.className = "flex items-center justify-between p-3 bg-slate-950/60 border border-slate-900/50 rounded-xl gap-2";
+                    
+                    const label = document.createElement('label');
+                    label.className = `flex items-center gap-3 cursor-pointer text-sm flex-1 ${todo.completed ? 'line-through text-slate-600' : 'text-slate-200'}`;
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = todo.completed;
+                    checkbox.className = "w-5 h-5 rounded-lg border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0";
+                    checkbox.onchange = async () => { todo.completed = checkbox.checked; await saveCloudData(); };
+
+                    const textSpan = document.createElement('span');
+                    textSpan.className = "flex flex-col";
+                    textSpan.appendChild(document.createTextNode(todo.text));
+                    
+                    if (todo.assignee) {
+                        const badge = document.createElement('span');
+                        badge.className = "text-[10px] text-emerald-400 font-medium mt-0.5";
+                        badge.innerText = `👤 ${todo.assignee}`;
+                        textSpan.appendChild(badge);
+                    }
+
+                    label.appendChild(checkbox);
+                    label.appendChild(textSpan);
+                    li.appendChild(label);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '✕';
+                    delBtn.className = "text-slate-700 hover:text-rose-400 px-2 text-xs";
+                    delBtn.onclick = async () => { 
+                        appState[appState.activeList] = currentTodos.filter(t => t.id !== todo.id); 
+                        await saveCloudData(); 
+                    };
+                    li.appendChild(delBtn);
+                    ul.appendChild(li);
+                });
+                
+                familyDiv.appendChild(ul);
+                container.appendChild(familyDiv);
+            }
+
+            const total = currentTodos.length;
+            const completed = currentTodos.filter(t => t.completed).length;
+            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('progressText').innerText = `${percent}% done`;
+        }
+
+        document.getElementById('todoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('itemInput');
+            const assigneeInput = document.getElementById('assigneeInput');
+            const familyCategory = document.getElementById('familySelect').value;
+            
+            appState[appState.activeList].push({ 
+                id: Date.now(), 
+                text: input.value.trim(), 
+                completed: false, 
+                category: familyCategory, 
+                assignee: assigneeInput.value.trim() 
+            });
+            
+            input.value = ''; 
+            assigneeInput.value = ''; 
+            await saveCloudData();
+        });
+
+        loadCloudData();
+        setInterval(loadCloudData, 4000); // Poll server every 4s
+    </script>
+</body>
+</html>
