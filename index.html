@@ -44,16 +44,37 @@
             </div>
         </div>
 
-        <div class="flex items-center gap-2 mb-6">
+        <div class="flex items-center gap-2 mb-4">
             <div id="tabsContainer" class="flex gap-2 overflow-x-auto no-scrollbar pb-1 flex-1"></div>
             <button onclick="openModal()" class="bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 h-9 w-9 rounded-xl font-bold text-lg flex items-center justify-center shrink-0 active:scale-95 transition-all shadow-md">
                 ＋
             </button>
         </div>
 
+        <div id="mealsFilterContainer" class="hidden bg-slate-900/40 border border-slate-900 rounded-2xl p-3 mb-6 space-y-3 shadow-inner">
+            <div>
+                <label class="text-[10px] text-indigo-400 uppercase font-black tracking-widest pl-1 block mb-1">📅 Filter by Date</label>
+                <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                    <button onclick="switchMealDate('4.07.2026')" id="date-4_07_2026" class="py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 shrink-0">4.07</button>
+                    <button onclick="switchMealDate('5.07.2026')" id="date-5_07_2026" class="py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 shrink-0">5.07</button>
+                    <button onclick="switchMealDate('6.07.2026')" id="date-6_07_2026" class="py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 shrink-0">6.07</button>
+                    <button onclick="switchMealDate('7.07.2026')" id="date-7_07_2026" class="py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 shrink-0">7.07</button>
+                    <button onclick="switchMealDate('8.07.2026')" id="date-8_07_2026" class="py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 shrink-0">8.07</button>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] text-emerald-400 uppercase font-black tracking-widest pl-1 block mb-1">🍳 Filter by Subcategory</label>
+                <div class="flex gap-2">
+                    <button onclick="switchMealSub('Breakfast')" id="sub-Breakfast" class="flex-1 py-1.5 px-2 text-xs font-bold rounded-lg border border-slate-800">Breakfast</button>
+                    <button onclick="switchMealSub('Lunch')" id="sub-Lunch" class="flex-1 py-1.5 px-2 text-xs font-bold rounded-lg border border-slate-800">Lunch</button>
+                    <button onclick="switchMealSub('Dinner')" id="sub-Dinner" class="flex-1 py-1.5 px-2 text-xs font-bold rounded-lg border border-slate-800">Dinner</button>
+                </div>
+            </div>
+        </div>
+
         <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3">
             <div class="flex gap-2">
-                <input type="text" id="itemInput" placeholder="Add custom item..." required 
+                <input type="text" id="itemInput" placeholder="Add item details..." required 
                     class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 <button type="submit" class="bg-emerald-500 text-slate-950 px-5 rounded-xl text-sm font-bold active:scale-95 transition-all">Add</button>
             </div>
@@ -119,9 +140,13 @@
         const db = firebase.firestore();
 
         let currentActiveTab = 'packing';
+        let activeMealDate = '4.07.2026';
+        let activeMealSub = 'Breakfast';
+
         let globalItems = [];
         let globalTabs = ['packing', 'meals'];
         let globalTabNames = { packing: '📦 Packing', meals: '🍳 Meals' };
+        let isInitialLoad = true;
 
         const defaultPackingItems = [
             { text: "🚨 ID Card", priority: 1 },
@@ -158,7 +183,7 @@
             { text: "⚡ Electric Tape (for insulating)", priority: 32 }
         ];
 
-        // 1. Realtime Data Handlers
+        // 1. Realtime Data Streams Configuration Synchronization
         db.collection("camping_config").doc("tabs").onSnapshot((doc) => {
             if (doc.exists) {
                 const data = doc.data();
@@ -179,8 +204,9 @@
                 globalItems.push({ id: doc.id, ...doc.data() });
             });
 
-            // FIXED: Instantly trigger baseline template populate rule if zero entries exist
-            if (snapshot.empty) {
+            // Structural checking rule to prevent loop duplications across devices
+            if (snapshot.empty && isInitialLoad) {
+                isInitialLoad = false;
                 defaultPackingItems.forEach(item => {
                     db.collection("camping_items").add({
                         text: item.text,
@@ -192,17 +218,18 @@
                     });
                 });
             } else {
+                isInitialLoad = false;
                 renderList();
             }
         });
 
-        // 2. Rendering Pipelines
+        // 2. Rendering Layout Controllers
         function renderTabs() {
             const container = document.getElementById('tabsContainer');
             container.innerHTML = '';
             globalTabs.forEach(key => {
                 const btn = document.createElement('button');
-                btn.onclick = () => { currentActiveTab = key; renderTabs(); renderList(); };
+                btn.onclick = () => switchPrimaryTab(key);
                 btn.className = currentActiveTab === key
                     ? "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950 shrink-0 shadow-md"
                     : "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400 shrink-0";
@@ -211,12 +238,46 @@
             });
         }
 
+        function switchPrimaryTab(key) {
+            currentActiveTab = key;
+            const subFilter = document.getElementById('mealsFilterContainer');
+            if (key === 'meals') {
+                subFilter.classList.remove('hidden');
+                renderMealFilters();
+            } else {
+                subFilter.classList.add('hidden');
+            }
+            renderTabs();
+            renderList();
+        }
+
+        function switchMealDate(dateStr) { activeMealDate = dateStr; renderMealFilters(); renderList(); }
+        function switchMealSub(subStr) { activeMealSub = subStr; renderMealFilters(); renderList(); }
+
+        function renderMealFilters() {
+            ['4.07.2026', '5.07.2026', '6.07.2026', '7.07.2026', '8.07.2026'].forEach(d => {
+                const id = `date-${d.replace(/\./g, '_')}`;
+                document.getElementById(id).className = activeMealDate === d
+                    ? "py-1.5 px-3 text-xs font-bold rounded-lg border border-emerald-500 bg-emerald-500/10 text-emerald-400 shrink-0"
+                    : "py-1.5 px-3 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900 text-slate-400 shrink-0";
+            });
+            ['Breakfast', 'Lunch', 'Dinner'].forEach(s => {
+                document.getElementById(`sub-${s}`).className = activeMealSub === s
+                    ? "flex-1 py-1.5 px-2 text-xs font-bold rounded-lg border border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                    : "flex-1 py-1.5 px-2 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900 text-slate-400";
+            });
+        }
+
         function renderList() {
             const container = document.getElementById('categoriesContainer');
             const tableBody = document.getElementById('completedTableBody');
             container.innerHTML = ''; tableBody.innerHTML = '';
 
-            const currentTabTodos = globalItems.filter(item => item.listKey === currentActiveTab);
+            // Extract items filtered exactly by tab layouts, dates, and sub-meals matching variables
+            let currentTabTodos = globalItems.filter(item => item.listKey === currentActiveTab);
+            if (currentActiveTab === 'meals') {
+                currentTabTodos = currentTabTodos.filter(item => item.mealDate === activeMealDate && item.mealSub === activeMealSub);
+            }
             
             const pendingItems = currentTabTodos.filter(t => !t.completed).sort((a,b) => {
                 return (a.orderWeight || 99) - (b.orderWeight || 99) || a.createdAt - b.createdAt;
@@ -230,7 +291,7 @@
             }, {});
 
             if (pendingItems.length === 0) {
-                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending items here. Add some below!</div>`;
+                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending tasks remaining.</div>`;
             }
 
             for (const familyGroup in grouped) {
@@ -271,7 +332,7 @@
             }
 
             if (completedItems.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-600 italic">No completed items ledgered.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-600 italic">No completed ledger logs.</td></tr>`;
             } else {
                 completedItems.forEach(todo => {
                     const tr = document.createElement('tr'); tr.className = "hover:bg-slate-900/40 transition-colors";
@@ -314,20 +375,28 @@
             document.getElementById('progressText').innerText = `${percent}% done`;
         }
 
-        // 3. Document Action Elements Interceptors
+        // 3. Document Submissions Interceptors & Pipeline Commands
         document.getElementById('todoForm').addEventListener('submit', (e) => {
             e.preventDefault();
             const input = document.getElementById('itemInput');
             const familyCategory = document.getElementById('familySelect').value;
             
-            db.collection("camping_items").add({
+            const itemData = {
                 text: input.value.trim(),
                 completed: false,
                 category: familyCategory,
                 listKey: currentActiveTab,
                 orderWeight: 99, 
                 createdAt: Date.now()
-            });
+            };
+
+            // Inject secondary parameters transparently if inside the nested meal timelines
+            if (currentActiveTab === 'meals') {
+                itemData.mealDate = activeMealDate;
+                itemData.mealSub = activeMealSub;
+            }
+
+            db.collection("camping_items").add(itemData);
             input.value = ''; input.blur();
         });
 
@@ -343,7 +412,7 @@
             globalTabNames[sanitizedKey] = name;
             currentActiveTab = sanitizedKey;
             
-            db.collection("camping_config").doc("tabs").update({
+            db.collection("camping_config").doc("tabs").set({
                 lists: globalTabs,
                 listNames: globalTabNames
             });
