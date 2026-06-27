@@ -91,8 +91,7 @@
     </div>
 
     <script>
-        // Completely separate database sync bucket key to avoid old cached memory pools
-        const DB_KEY = "camping_hub_family_sync_226_v7_clean";
+        const DB_KEY = "camping_hub_family_sync_2026_v9_stable";
         const API_URL = `https://api.restful-api.dev/objects/${DB_KEY}`;
 
         let appState = {
@@ -102,12 +101,23 @@
             raw_materials: []
         };
 
+        let isTyping = false;
+        const itemInput = document.getElementById('itemInput');
+
+        // Monitor typing state so backgrounds tasks don't overwrite user input fields
+        itemInput.addEventListener('focus', () => { isTyping = true; });
+        itemInput.addEventListener('blur', () => { isTyping = false; });
+        itemInput.addEventListener('input', () => { isTyping = true; });
+
         async function loadCloudData() {
+            // Prevent reload completely if user is in the middle of typing
+            if (isTyping) return; 
+            
             try {
                 const res = await fetch(API_URL);
                 if (res.ok) {
                     const json = await res.json();
-                    if(json.data) {
+                    if(json.data && !isTyping) {
                         const currentTab = appState.activeList;
                         appState = JSON.parse(json.data);
                         appState.activeList = currentTab;
@@ -125,7 +135,7 @@
                 await fetch(`https://api.restful-api.dev/objects`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataClean", data: JSON.stringify(appState) })
+                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataStable", data: JSON.stringify(appState) })
                 });
             } catch (e) { console.error(e); }
         }
@@ -233,19 +243,20 @@
 
         document.getElementById('todoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const input = document.getElementById('itemInput');
             const familyCategory = document.getElementById('familySelect').value;
             
             if(!appState[appState.activeList]) appState[appState.activeList] = [];
             
             appState[appState.activeList].push({ 
                 id: Date.now(), 
-                text: input.value.trim(), 
+                text: itemInput.value.trim(), 
                 completed: false, 
                 category: familyCategory
             });
             
-            input.value = ''; 
+            itemInput.value = ''; 
+            isTyping = false; // Reset typing tracker on submission
+            itemInput.blur();
             await saveCloudData();
         });
 
