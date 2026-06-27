@@ -6,33 +6,26 @@
     <title>Family Camping Sync Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        @keyframes marquee { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-33.33%, 0, 0); } }
         @keyframes dazzle {
             0%, 100% { color: #f43f5e; text-shadow: 0 0 20px rgba(244,63,94,0.8), 0 0 40px rgba(244,63,94,0.4); }
             33% { color: #38bdf8; text-shadow: 0 0 20px rgba(56,189,248,0.8), 0 0 40px rgba(56,189,248,0.4); }
             66% { color: #34d399; text-shadow: 0 0 20px rgba(52,211,153,0.8), 0 0 40px rgba(52,211,153,0.4); }
         }
-        .dazzle-text {
-            animation: dazzle 3s infinite linear;
-        }
+        .dazzle-text { animation: dazzle 3s infinite linear; }
+        .marquee-inner { animation: marquee 20s linear infinite; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-12">
 
     <!-- Dazzling Running Banner -->
     <div class="bg-slate-900 border-b border-slate-800 overflow-hidden py-3 shadow-lg">
-        <div class="whitespace-nowrap inline-block animate-[marquee_20s_linear_infinite] hover:[animation-play-state:paused]">
+        <div class="whitespace-nowrap inline-block marquee-inner hover:[animation-play-state:paused]">
             <span class="text-lg font-black tracking-widest uppercase px-4 dazzle-text">
                 ⚡ Start on 4th July at 5 AM ⚡ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ⚡ Start on 4th July at 5 AM ⚡ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ⚡ Start on 4th July at 5 AM ⚡
             </span>
         </div>
     </div>
-
-    <!-- Injecting Marquee Keyframes natively into Tailwind -->
-    <script>
-        const style = document.createElement('style');
-        style.innerHTML = '@keyframes marquee { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-33.33%, 0, 0); } }';
-        document.head.appendChild(style);
-    </script>
 
     <div class="max-w-md mx-auto px-4 pt-6">
         <!-- Header Hub -->
@@ -91,30 +84,22 @@
                             <th class="py-2 px-2 text-right">Assigned Family</th>
                         </tr>
                     </thead>
-                    <tbody id="completedTableBody" class="divide-y divide-slate-900 text-slate-400">
-                        <!-- Filled dynamically -->
-                    </tbody>
+                    <tbody id="completedTableBody" class="divide-y divide-slate-900 text-slate-400"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
     <script>
-        const DB_KEY = "camping_hub_family_sync_2026_v5_final";
+        // Completely separate database sync bucket key to avoid old cached memory pools
+        const DB_KEY = "camping_hub_family_sync_226_v7_clean";
         const API_URL = `https://api.restful-api.dev/objects/${DB_KEY}`;
 
         let appState = {
             activeList: 'packing',
-            packing: [
-                { id: 1, text: "6-Person Cabin Camping Tent", completed: false, category: "Naveen & Nagamani" },
-                { id: 2, text: "Foldable Camping Chairs", completed: true, category: "Pawan & Snehal" }
-            ],
-            meals: [
-                { id: 3, text: "Marinated Paneer & Veggies", completed: false, category: "Arjun & Manasa" }
-            ],
-            raw_materials: [
-                { id: 4, text: "Dry Firewood Packs", completed: false, category: "Sumanth & Anagha" }
-            ]
+            packing: [],
+            meals: [],
+            raw_materials: []
         };
 
         async function loadCloudData() {
@@ -140,7 +125,7 @@
                 await fetch(`https://api.restful-api.dev/objects`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataFinal", data: JSON.stringify(appState) })
+                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataClean", data: JSON.stringify(appState) })
                 });
             } catch (e) { console.error(e); }
         }
@@ -161,11 +146,9 @@
 
             const currentTodos = appState[appState.activeList] || [];
 
-            // Split into pending items and completed items
             const pendingItems = currentTodos.filter(t => !t.completed);
             const completedItems = currentTodos.filter(t => t.completed);
 
-            // 1. Render Pending Items Grouped by Family
             const grouped = pendingItems.reduce((acc, todo) => {
                 if (!acc[todo.category]) acc[todo.category] = [];
                 acc[todo.category].push(todo);
@@ -173,7 +156,7 @@
             }, {});
 
             if (pendingItems.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 text-slate-700 text-xs tracking-wider">All pending items cleared here!</div>`;
+                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending tasks remaining.</div>`;
             }
 
             for (const familyGroup in grouped) {
@@ -220,9 +203,8 @@
                 container.appendChild(familyDiv);
             }
 
-            // 2. Render Completed Items in Side-by-Side Table History Matrix
             if (completedItems.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-600 italic">No completed items logged yet.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-600 italic">No items logged yet.</td></tr>`;
             } else {
                 completedItems.forEach(todo => {
                     const tr = document.createElement('tr');
@@ -242,7 +224,6 @@
                 });
             }
 
-            // Update Global Calculations Metrics
             const total = currentTodos.length;
             const completed = completedItems.length;
             const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
@@ -269,7 +250,7 @@
         });
 
         loadCloudData();
-        setInterval(loadCloudData, 4000); // Cross-family stream polling updates
+        setInterval(loadCloudData, 4000);
     </script>
 </body>
 </html>
