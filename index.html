@@ -14,11 +14,13 @@
         }
         .dazzle-text { animation: dazzle 3s infinite linear; }
         .marquee-inner { animation: marquee 20s linear infinite; }
+        /* Hide scrollbar for Chrome/Safari */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-12">
 
-    <!-- Dazzling Running Banner -->
     <div class="bg-slate-900 border-b border-slate-800 overflow-hidden py-3 shadow-lg">
         <div class="whitespace-nowrap inline-block marquee-inner hover:[animation-play-state:paused]">
             <span class="text-lg font-black tracking-widest uppercase px-4 dazzle-text">
@@ -28,7 +30,6 @@
     </div>
 
     <div class="max-w-md mx-auto px-4 pt-6">
-        <!-- Header Hub -->
         <div class="bg-gradient-to-br from-indigo-600 to-emerald-600 p-6 rounded-3xl shadow-xl mb-6 relative overflow-hidden">
             <h1 class="text-2xl font-bold tracking-tight">🌲 Family Camping Hub</h1>
             <p class="text-indigo-100 text-xs font-medium mt-1 uppercase tracking-widest">July 4th – July 8th</p>
@@ -37,18 +38,19 @@
                 <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-indigo-300 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
             <div class="flex justify-between items-center mt-2">
-                <span class="text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300 animate-pulse">● Live Cloud Sync</span>
+                <span id="syncStatus" class="text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300">● Live Cloud Sync</span>
                 <p id="progressText" class="text-xs font-bold text-white">0% done</p>
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="flex gap-2 mb-6 overflow-x-auto pb-1">
-            <button onclick="switchList('packing')" id="tab-packing" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950">📦 Packing</button>
-            <button onclick="switchList('meals')" id="tab-meals" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🍳 Meals</button>
+        <div class="flex items-center gap-2 mb-6">
+            <div id="tabsContainer" class="flex gap-2 overflow-x-auto no-scrollbar pb-1 flex-1">
+                </div>
+            <button onclick="addNewTabPrompt()" class="bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 h-9 w-9 rounded-xl font-bold text-lg flex items-center justify-center shrink-0 active:scale-95 transition-all shadow-md">
+                ＋
+            </button>
         </div>
 
-        <!-- Input Form -->
         <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3">
             <div class="flex gap-2">
                 <input type="text" id="itemInput" placeholder="Add an item..." required 
@@ -67,10 +69,8 @@
             </div>
         </form>
 
-        <!-- Dynamic Pending Lists Grouped by Family -->
         <div id="categoriesContainer" class="space-y-4 mb-8"></div>
 
-        <!-- Completed History Table Block -->
         <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 shadow-md">
             <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 ✅ Completed Items Ledger
@@ -90,177 +90,46 @@
     </div>
 
     <script>
-        const DB_KEY = "camping_hub_family_sync_2026_v9_stable";
-        const API_URL = `https://api.restful-api.dev/objects/${DB_KEY}`;
+        // Separate, high-performance database cluster key for tracking infinite layout configurations
+        const DB_KEY = "camp_trip_july4_2026_v12_dynamic";
+        const API_URL = `https://kvest.cc/api/v1/store/${DB_KEY}`;
 
         let appState = {
             activeList: 'packing',
+            lists: ['packing', 'meals'], // Dynamically tracking list keys
+            listNames: { packing: '📦 Packing', meals: '🍳 Meals' }, // Mapping keys to view labels
             packing: [],
-            meals: [],
-            raw_materials: []
+            meals: []
         };
 
         let isTyping = false;
         const itemInput = document.getElementById('itemInput');
+        const statusSpan = document.getElementById('syncStatus');
 
-        // Monitor typing state so backgrounds tasks don't overwrite user input fields
         itemInput.addEventListener('focus', () => { isTyping = true; });
         itemInput.addEventListener('blur', () => { isTyping = false; });
         itemInput.addEventListener('input', () => { isTyping = true; });
 
+        function updateStatus(text, isError = false) {
+            statusSpan.innerText = `● ${text}`;
+            statusSpan.className = isError 
+                ? "text-[10px] bg-rose-950/30 px-2 py-0.5 rounded-full text-rose-400 animate-pulse" 
+                : "text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300";
+        }
+
         async function loadCloudData() {
-            // Prevent reload completely if user is in the middle of typing
             if (isTyping) return; 
-            
             try {
                 const res = await fetch(API_URL);
                 if (res.ok) {
                     const json = await res.json();
-                    if(json.data && !isTyping) {
+                    if(json && json.value && !isTyping) {
                         const currentTab = appState.activeList;
-                        appState = JSON.parse(json.data);
-                        appState.activeList = currentTab;
-                    }
-                } else {
-                    await saveCloudData();
-                }
-                renderList();
-            } catch (e) { renderList(); }
-        }
-
-        async function saveCloudData() {
-            renderList();
-            try {
-                await fetch(`https://api.restful-api.dev/objects`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataStable", data: JSON.stringify(appState) })
-                });
-            } catch (e) { console.error(e); }
-        }
-
-        function switchList(listName) {
-            appState.activeList = listName;
-            ['packing', 'meals', 'raw_materials'].forEach(tab => {
-                document.getElementById(`tab-${tab}`).className = tab === listName ? "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950" : "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400";
-            });
-            renderList();
-        }
-
-        function renderList() {
-            const container = document.getElementById('categoriesContainer');
-            const tableBody = document.getElementById('completedTableBody');
-            container.innerHTML = '';
-            tableBody.innerHTML = '';
-
-            const currentTodos = appState[appState.activeList] || [];
-
-            const pendingItems = currentTodos.filter(t => !t.completed);
-            const completedItems = currentTodos.filter(t => t.completed);
-
-            const grouped = pendingItems.reduce((acc, todo) => {
-                if (!acc[todo.category]) acc[todo.category] = [];
-                acc[todo.category].push(todo);
-                return acc;
-            }, {});
-
-            if (pendingItems.length === 0) {
-                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending tasks remaining.</div>`;
-            }
-
-            for (const familyGroup in grouped) {
-                const familyDiv = document.createElement('div');
-                familyDiv.className = "bg-slate-900/40 border border-slate-900 rounded-2xl p-4 shadow-sm";
-                
-                const title = document.createElement('h2');
-                title.className = "text-[11px] font-extrabold text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5";
-                title.innerHTML = `👥 ${familyGroup}`;
-                familyDiv.appendChild(title);
-
-                const ul = document.createElement('ul');
-                ul.className = "space-y-2.5";
-                
-                grouped[familyGroup].forEach(todo => {
-                    const li = document.createElement('li');
-                    li.className = "flex items-center justify-between p-3 bg-slate-950/60 border border-slate-900/50 rounded-xl gap-2";
-                    
-                    const label = document.createElement('label');
-                    label.className = "flex items-center gap-3 cursor-pointer text-sm flex-1 text-slate-200";
-                    
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.checked = todo.completed;
-                    checkbox.className = "w-5 h-5 rounded-lg border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0";
-                    checkbox.onchange = async () => { todo.completed = checkbox.checked; await saveCloudData(); };
-
-                    label.appendChild(checkbox);
-                    label.appendChild(document.createTextNode(todo.text));
-                    li.appendChild(label);
-
-                    const delBtn = document.createElement('button');
-                    delBtn.innerHTML = '✕';
-                    delBtn.className = "text-slate-700 hover:text-rose-400 px-2 text-xs";
-                    delBtn.onclick = async () => { 
-                        appState[appState.activeList] = currentTodos.filter(t => t.id !== todo.id); 
-                        await saveCloudData(); 
-                    };
-                    li.appendChild(delBtn);
-                    ul.appendChild(li);
-                });
-                
-                familyDiv.appendChild(ul);
-                container.appendChild(familyDiv);
-            }
-
-            if (completedItems.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-600 italic">No items logged yet.</td></tr>`;
-            } else {
-                completedItems.forEach(todo => {
-                    const tr = document.createElement('tr');
-                    tr.className = "hover:bg-slate-900/40 transition-colors";
-
-                    const tdText = document.createElement('td');
-                    tdText.className = "py-2.5 px-1 line-through text-slate-500 max-w-[200px] truncate";
-                    tdText.innerText = todo.text;
-
-                    const tdFamily = document.createElement('td');
-                    tdFamily.className = "py-2.5 px-2 text-right text-emerald-500/80 font-medium";
-                    tdFamily.innerText = todo.category;
-
-                    tr.appendChild(tdText);
-                    tr.appendChild(tdFamily);
-                    tableBody.appendChild(tr);
-                });
-            }
-
-            const total = currentTodos.length;
-            const completed = completedItems.length;
-            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
-            document.getElementById('progressBar').style.width = `${percent}%`;
-            document.getElementById('progressText').innerText = `${percent}% done`;
-        }
-
-        document.getElementById('todoForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const familyCategory = document.getElementById('familySelect').value;
-            
-            if(!appState[appState.activeList]) appState[appState.activeList] = [];
-            
-            appState[appState.activeList].push({ 
-                id: Date.now(), 
-                text: itemInput.value.trim(), 
-                completed: false, 
-                category: familyCategory
-            });
-            
-            itemInput.value = ''; 
-            isTyping = false; // Reset typing tracker on submission
-            itemInput.blur();
-            await saveCloudData();
-        });
-
-        loadCloudData();
-        setInterval(loadCloudData, 4000);
-    </script>
-</body>
-</html>
+                        appState = JSON.parse(json.value);
+                        // Safe fallback check if active list was deleted remotely
+                        if(!appState.lists.includes(currentTab)) {
+                            appState.activeList = appState.lists[0] || 'packing';
+                        } else {
+                            appState.activeList = currentTab;
+                        }
+                        update
