@@ -5,10 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Camping Sync Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes dazzle {
+            0%, 100% { color: #f43f5e; text-shadow: 0 0 20px rgba(244,63,94,0.8), 0 0 40px rgba(244,63,94,0.4); }
+            33% { color: #38bdf8; text-shadow: 0 0 20px rgba(56,189,248,0.8), 0 0 40px rgba(56,189,248,0.4); }
+            66% { color: #34d399; text-shadow: 0 0 20px rgba(52,211,153,0.8), 0 0 40px rgba(52,211,153,0.4); }
+        }
+        .dazzle-text {
+            animation: dazzle 3s infinite linear;
+        }
+    </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-12">
 
-    <div class="max-w-md mx-auto px-4 pt-8">
+    <!-- Dazzling Running Banner -->
+    <div class="bg-slate-900 border-b border-slate-800 overflow-hidden py-3 shadow-lg">
+        <div class="whitespace-nowrap inline-block animate-[marquee_20s_linear_infinite] hover:[animation-play-state:paused]">
+            <span class="text-lg font-black tracking-widest uppercase px-4 dazzle-text">
+                ⚡ Start on 4th July at 5 AM ⚡ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ⚡ Start on 4th July at 5 AM ⚡ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ⚡ Start on 4th July at 5 AM ⚡
+            </span>
+        </div>
+    </div>
+
+    <!-- Injecting Marquee Keyframes natively into Tailwind -->
+    <script>
+        const style = document.createElement('style');
+        style.innerHTML = '@keyframes marquee { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-33.33%, 0, 0); } }';
+        document.head.appendChild(style);
+    </script>
+
+    <div class="max-w-md mx-auto px-4 pt-6">
+        <!-- Header Hub -->
         <div class="bg-gradient-to-br from-indigo-600 to-emerald-600 p-6 rounded-3xl shadow-xl mb-6 relative overflow-hidden">
             <h1 class="text-2xl font-bold tracking-tight">🌲 Family Camping Hub</h1>
             <p class="text-indigo-100 text-xs font-medium mt-1 uppercase tracking-widest">July 4th – July 8th</p>
@@ -17,62 +44,76 @@
                 <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-indigo-300 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
             <div class="flex justify-between items-center mt-2">
-                <span class="text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300 animate-pulse">● Live Family Sync Active</span>
+                <span class="text-[10px] bg-slate-950/30 px-2 py-0.5 rounded-full text-emerald-300 animate-pulse">● Live Cloud Sync</span>
                 <p id="progressText" class="text-xs font-bold text-white">0% done</p>
             </div>
         </div>
 
+        <!-- Navigation Tabs -->
         <div class="flex gap-2 mb-6 overflow-x-auto pb-1">
             <button onclick="switchList('packing')" id="tab-packing" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950">📦 Packing</button>
             <button onclick="switchList('meals')" id="tab-meals" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🍳 Meals</button>
-            <button onclick="switchList('tasks')" id="tab-tasks" class="flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🪵 Tasks</button>
+            <button onclick="switchList('raw_materials')" id="tab-raw_materials" class="flex-1 min-w-[110px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400">🪵 Raw Materials</button>
         </div>
 
-        <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3 backdrop-blur-md">
+        <!-- Input Form -->
+        <form id="todoForm" class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-lg mb-6 flex flex-col gap-3">
             <div class="flex gap-2">
                 <input type="text" id="itemInput" placeholder="Add an item..." required 
-                    class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 <button type="submit" class="bg-emerald-500 text-slate-950 px-5 rounded-xl text-sm font-bold active:scale-95 transition-all">Add</button>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Family Group</label>
-                    <select id="familySelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 focus:outline-none">
-                        <option value="Shashi Bushana Family">Shashi Bushana Family</option>
-                        <option value="Family 2">Family 2</option>
-                        <option value="Family 3">Family 3</option>
-                        <option value="Shared / Everyone">Shared / Everyone</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Specific Person</label>
-                    <input type="text" id="assigneeInput" placeholder="Name (Optional)" 
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500">
-                </div>
+            <div>
+                <label class="text-[10px] text-slate-500 uppercase font-bold pl-1 block mb-1">Family Assignment</label>
+                <select id="familySelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none">
+                    <option value="Naveen & Nagamani">Naveen & Nagamani</option>
+                    <option value="Pawan & Snehal">Pawan & Snehal</option>
+                    <option value="Arjun & Manasa">Arjun & Manasa</option>
+                    <option value="Sumanth & Anagha">Sumanth & Anagha</option>
+                    <option value="Shared / Everyone">Shared / Everyone</option>
+                </select>
             </div>
         </form>
 
-        <div id="categoriesContainer" class="space-y-4">
-            <div class="text-center py-8 text-slate-600 text-sm">Syncing family data streams...</div>
+        <!-- Dynamic Pending Lists Grouped by Family -->
+        <div id="categoriesContainer" class="space-y-4 mb-8"></div>
+
+        <!-- Completed History Table Block -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 shadow-md">
+            <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                ✅ Completed Items Ledger
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-slate-500 font-bold">
+                            <th class="py-2 px-1">Item Description</th>
+                            <th class="py-2 px-2 text-right">Assigned Family</th>
+                        </tr>
+                    </thead>
+                    <tbody id="completedTableBody" class="divide-y divide-slate-900 text-slate-400">
+                        <!-- Filled dynamically -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        // High-performance independent data pool
-        const DB_KEY = "camping_hub_family_sync_2026_v4";
+        const DB_KEY = "camping_hub_family_sync_2026_v5_final";
         const API_URL = `https://api.restful-api.dev/objects/${DB_KEY}`;
 
         let appState = {
             activeList: 'packing',
             packing: [
-                { id: 1, text: "6-Person Family Tent & Stakes", completed: false, category: "Shashi Bushana Family", assignee: "Naveen" },
-                { id: 2, text: "Sleeping Mats & Air Pump", completed: false, category: "Shared / Everyone", assignee: "Everyone" }
+                { id: 1, text: "6-Person Cabin Camping Tent", completed: false, category: "Naveen & Nagamani" },
+                { id: 2, text: "Foldable Camping Chairs", completed: true, category: "Pawan & Snehal" }
             ],
             meals: [
-                { id: 3, text: "Marinated BBQ Meats", completed: false, category: "Family 2", assignee: "" }
+                { id: 3, text: "Marinated Paneer & Veggies", completed: false, category: "Arjun & Manasa" }
             ],
-            tasks: [
-                { id: 4, text: "Collect dry firewood supply", completed: false, category: "Shared / Everyone", assignee: "" }
+            raw_materials: [
+                { id: 4, text: "Dry Firewood Packs", completed: false, category: "Sumanth & Anagha" }
             ]
         };
 
@@ -99,14 +140,14 @@
                 await fetch(`https://api.restful-api.dev/objects`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingData", data: JSON.stringify(appState) })
+                    body: JSON.stringify({ id: DB_KEY, name: "FamilyCampingDataFinal", data: JSON.stringify(appState) })
                 });
             } catch (e) { console.error(e); }
         }
 
         function switchList(listName) {
             appState.activeList = listName;
-            ['packing', 'meals', 'tasks'].forEach(tab => {
+            ['packing', 'meals', 'raw_materials'].forEach(tab => {
                 document.getElementById(`tab-${tab}`).className = tab === listName ? "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950" : "flex-1 min-w-[90px] py-2 px-3 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400";
             });
             renderList();
@@ -114,18 +155,25 @@
 
         function renderList() {
             const container = document.getElementById('categoriesContainer');
+            const tableBody = document.getElementById('completedTableBody');
             container.innerHTML = '';
+            tableBody.innerHTML = '';
+
             const currentTodos = appState[appState.activeList] || [];
-            
-            // Group items by Family
-            const grouped = currentTodos.reduce((acc, todo) => {
+
+            // Split into pending items and completed items
+            const pendingItems = currentTodos.filter(t => !t.completed);
+            const completedItems = currentTodos.filter(t => t.completed);
+
+            // 1. Render Pending Items Grouped by Family
+            const grouped = pendingItems.reduce((acc, todo) => {
                 if (!acc[todo.category]) acc[todo.category] = [];
                 acc[todo.category].push(todo);
                 return acc;
             }, {});
 
-            if (Object.keys(grouped).length === 0) {
-                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No items added to this list yet.</div>`;
+            if (pendingItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-slate-700 text-xs tracking-wider">All pending items cleared here!</div>`;
             }
 
             for (const familyGroup in grouped) {
@@ -145,7 +193,7 @@
                     li.className = "flex items-center justify-between p-3 bg-slate-950/60 border border-slate-900/50 rounded-xl gap-2";
                     
                     const label = document.createElement('label');
-                    label.className = `flex items-center gap-3 cursor-pointer text-sm flex-1 ${todo.completed ? 'line-through text-slate-600' : 'text-slate-200'}`;
+                    label.className = "flex items-center gap-3 cursor-pointer text-sm flex-1 text-slate-200";
                     
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
@@ -153,19 +201,8 @@
                     checkbox.className = "w-5 h-5 rounded-lg border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0";
                     checkbox.onchange = async () => { todo.completed = checkbox.checked; await saveCloudData(); };
 
-                    const textSpan = document.createElement('span');
-                    textSpan.className = "flex flex-col";
-                    textSpan.appendChild(document.createTextNode(todo.text));
-                    
-                    if (todo.assignee) {
-                        const badge = document.createElement('span');
-                        badge.className = "text-[10px] text-emerald-400 font-medium mt-0.5";
-                        badge.innerText = `👤 ${todo.assignee}`;
-                        textSpan.appendChild(badge);
-                    }
-
                     label.appendChild(checkbox);
-                    label.appendChild(textSpan);
+                    label.appendChild(document.createTextNode(todo.text));
                     li.appendChild(label);
 
                     const delBtn = document.createElement('button');
@@ -183,8 +220,31 @@
                 container.appendChild(familyDiv);
             }
 
+            // 2. Render Completed Items in Side-by-Side Table History Matrix
+            if (completedItems.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-600 italic">No completed items logged yet.</td></tr>`;
+            } else {
+                completedItems.forEach(todo => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-900/40 transition-colors";
+
+                    const tdText = document.createElement('td');
+                    tdText.className = "py-2.5 px-1 line-through text-slate-500 max-w-[200px] truncate";
+                    tdText.innerText = todo.text;
+
+                    const tdFamily = document.createElement('td');
+                    tdFamily.className = "py-2.5 px-2 text-right text-emerald-500/80 font-medium";
+                    tdFamily.innerText = todo.category;
+
+                    tr.appendChild(tdText);
+                    tr.appendChild(tdFamily);
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            // Update Global Calculations Metrics
             const total = currentTodos.length;
-            const completed = currentTodos.filter(t => t.completed).length;
+            const completed = completedItems.length;
             const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
             document.getElementById('progressBar').style.width = `${percent}%`;
             document.getElementById('progressText').innerText = `${percent}% done`;
@@ -193,24 +253,23 @@
         document.getElementById('todoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('itemInput');
-            const assigneeInput = document.getElementById('assigneeInput');
             const familyCategory = document.getElementById('familySelect').value;
+            
+            if(!appState[appState.activeList]) appState[appState.activeList] = [];
             
             appState[appState.activeList].push({ 
                 id: Date.now(), 
                 text: input.value.trim(), 
                 completed: false, 
-                category: familyCategory, 
-                assignee: assigneeInput.value.trim() 
+                category: familyCategory
             });
             
             input.value = ''; 
-            assigneeInput.value = ''; 
             await saveCloudData();
         });
 
         loadCloudData();
-        setInterval(loadCloudData, 4000); // Poll server every 4s
+        setInterval(loadCloudData, 4000); // Cross-family stream polling updates
     </script>
 </body>
 </html>
