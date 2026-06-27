@@ -123,22 +123,235 @@
         let globalTabs = ['packing', 'meals'];
         let globalTabNames = { packing: '📦 Packing', meals: '🍳 Meals' };
 
-        // Default item list sorted intelligently by functional priority
         const defaultPackingItems = [
-            // Priority 1: Critical Documents & Identity
             { text: "🚨 ID Card", priority: 1 },
             { text: "🚨 Passport", priority: 2 },
             { text: "🚨 Health Insurance Card", priority: 3 },
             { text: "🚨 Driving Licence", priority: 4 },
             { text: "🎫 Vignette (Toll Tax)", priority: 5 },
-            // Priority 2: Core Survival Shelters & Sleep Infrastructure
             { text: "🎪 Tent", priority: 6 },
             { text: "🔩 Pegs and Tensioning Strings", priority: 7 },
             { text: "🛏️ Insulated Camping Mats", priority: 8 },
             { text: "😴 Sleeping Bag", priority: 9 },
             { text: "💤 Pillows", priority: 10 },
-            // Priority 3: Utility Connections & Electric Gear
             { text: "🔌 Electric Cord (Initial connection from box)", priority: 11 },
             { text: "🔌 Indian to EU/Universal conversion Plug", priority: 12 },
             { text: "🔋 Mobile / Tab / iPad / Laptop Chargers", priority: 13 },
-            { text: "💡 Camping Light", priority: 14
+            { text: "💡 Camping Light", priority: 14 },
+            { text: "🌡️ Cold Jackets (Sudden temperature drops forecasted)", priority: 15 },
+            { text: "🌧️ Rain Suitable Clothes", priority: 16 },
+            { text: "💊 Medication Tablets / General Tablets", priority: 17 },
+            { text: "⚡ Glucose", priority: 18 },
+            { text: "🪓 Camping Hammer (1 or 2 is sufficient)", priority: 19 },
+            { text: "🪑 Foldable Camping Chairs", priority: 20 },
+            { text: "🪵 Foldable Camping Table", priority: 21 },
+            { text: "🧺 Picnic Blanket", priority: 22 },
+            { text: "🪙 Small Coin Changes (e.g., for Washing etc.)", priority: 23 },
+            { text: "🔥 Lighter / Matches", priority: 24 },
+            { text: "🩴 Flip-Flops / Sandals / Hiking Shoes / Crocs 😁", priority: 25 },
+            { text: "🌂 Umbrellas", priority: 26 },
+            { text: "🎪 Tarp (If Available)", priority: 27 },
+            { text: "⚙️ Pocket Multitool Knife (Not Mandatory)", priority: 28 },
+            { text: "⛏️ Folding Spade (Not Mandatory)", priority: 29 },
+            { text: "🎪 Pavilion (Not Mandatory)", priority: 30 },
+            { text: "🛠️ Duct Tape", priority: 31 },
+            { text: "⚡ Electric Tape (for insulating)", priority: 32 }
+        ];
+
+        // 1. Realtime Data Handlers
+        db.collection("camping_config").doc("tabs").onSnapshot((doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                globalTabs = data.lists || ['packing', 'meals'];
+                globalTabNames = data.listNames || { packing: '📦 Packing', meals: '🍳 Meals' };
+            } else {
+                db.collection("camping_config").doc("tabs").set({
+                    lists: ['packing', 'meals'],
+                    listNames: { packing: '📦 Packing', meals: '🍳 Meals' }
+                });
+            }
+            renderTabs();
+        });
+
+        db.collection("camping_items").onSnapshot((snapshot) => {
+            globalItems = [];
+            snapshot.forEach((doc) => {
+                globalItems.push({ id: doc.id, ...doc.data() });
+            });
+
+            // FIXED: Instantly trigger baseline template populate rule if zero entries exist
+            if (snapshot.empty) {
+                defaultPackingItems.forEach(item => {
+                    db.collection("camping_items").add({
+                        text: item.text,
+                        completed: false,
+                        category: "Shared / Everyone",
+                        listKey: "packing",
+                        orderWeight: item.priority,
+                        createdAt: Date.now()
+                    });
+                });
+            } else {
+                renderList();
+            }
+        });
+
+        // 2. Rendering Pipelines
+        function renderTabs() {
+            const container = document.getElementById('tabsContainer');
+            container.innerHTML = '';
+            globalTabs.forEach(key => {
+                const btn = document.createElement('button');
+                btn.onclick = () => { currentActiveTab = key; renderTabs(); renderList(); };
+                btn.className = currentActiveTab === key
+                    ? "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-emerald-500 text-slate-950 shrink-0 shadow-md"
+                    : "py-2 px-4 text-xs font-bold rounded-xl border border-slate-800 bg-slate-900 text-slate-400 shrink-0";
+                btn.innerText = globalTabNames[key] || key;
+                container.appendChild(btn);
+            });
+        }
+
+        function renderList() {
+            const container = document.getElementById('categoriesContainer');
+            const tableBody = document.getElementById('completedTableBody');
+            container.innerHTML = ''; tableBody.innerHTML = '';
+
+            const currentTabTodos = globalItems.filter(item => item.listKey === currentActiveTab);
+            
+            const pendingItems = currentTabTodos.filter(t => !t.completed).sort((a,b) => {
+                return (a.orderWeight || 99) - (b.orderWeight || 99) || a.createdAt - b.createdAt;
+            });
+            const completedItems = currentTabTodos.filter(t => t.completed).sort((a,b) => b.createdAt - a.createdAt);
+
+            const grouped = pendingItems.reduce((acc, todo) => {
+                if (!acc[todo.category]) acc[todo.category] = [];
+                acc[todo.category].push(todo);
+                return acc;
+            }, {});
+
+            if (pendingItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-slate-700 text-xs tracking-wider">No pending items here. Add some below!</div>`;
+            }
+
+            for (const familyGroup in grouped) {
+                const familyDiv = document.createElement('div');
+                familyDiv.className = "bg-slate-900/40 border border-slate-900 rounded-2xl p-4 shadow-sm";
+                
+                const title = document.createElement('h2');
+                title.className = "text-[11px] font-extrabold text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5";
+                title.innerHTML = `👥 ${familyGroup}`;
+                familyDiv.appendChild(title);
+
+                const ul = document.createElement('ul'); ul.className = "space-y-2.5";
+                
+                grouped[familyGroup].forEach(todo => {
+                    const li = document.createElement('li');
+                    li.className = "flex items-center justify-between p-3 bg-slate-950/60 border border-slate-900/50 rounded-xl gap-2";
+                    
+                    const label = document.createElement('label');
+                    label.className = "flex items-center gap-3 cursor-pointer text-sm flex-1 text-slate-200";
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox'; checkbox.checked = todo.completed;
+                    checkbox.className = "w-5 h-5 rounded-lg border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0";
+                    checkbox.onchange = () => {
+                        db.collection("camping_items").doc(todo.id).update({ completed: checkbox.checked, createdAt: Date.now() });
+                    };
+
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(todo.text));
+                    li.appendChild(label);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '✕'; delBtn.className = "text-slate-700 hover:text-rose-400 px-2 text-xs";
+                    delBtn.onclick = () => { db.collection("camping_items").doc(todo.id).delete(); };
+                    li.appendChild(delBtn); ul.appendChild(li);
+                });
+                familyDiv.appendChild(ul); container.appendChild(familyDiv);
+            }
+
+            if (completedItems.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-600 italic">No completed items ledgered.</td></tr>`;
+            } else {
+                completedItems.forEach(todo => {
+                    const tr = document.createElement('tr'); tr.className = "hover:bg-slate-900/40 transition-colors";
+                    
+                    const tdCheck = document.createElement('td');
+                    tdCheck.className = "py-2.5 px-1 w-10 text-center";
+                    const innerCheck = document.createElement('input');
+                    innerCheck.type = 'checkbox'; innerCheck.checked = true;
+                    innerCheck.className = "w-4 h-4 rounded border-slate-800 text-emerald-500 bg-slate-900 focus:ring-0 cursor-pointer";
+                    innerCheck.onchange = () => {
+                        db.collection("camping_items").doc(todo.id).update({ completed: false, createdAt: Date.now() });
+                    };
+                    tdCheck.appendChild(innerCheck);
+
+                    const tdText = document.createElement('td'); 
+                    tdText.className = "py-2.5 px-1 line-through text-slate-500 max-w-[180px] truncate"; 
+                    tdText.innerText = todo.text;
+                    
+                    const tdFamily = document.createElement('td'); 
+                    tdFamily.className = "py-2.5 px-2 text-xs text-slate-500 font-medium"; 
+                    tdFamily.innerText = todo.category;
+                    
+                    const tdAction = document.createElement('td');
+                    tdAction.className = "py-2.5 px-1 text-right";
+                    const individualDel = document.createElement('button');
+                    individualDel.innerHTML = "Delete";
+                    individualDel.className = "text-[10px] bg-slate-900 border border-slate-800 text-rose-400 font-medium px-2 py-0.5 rounded-md hover:bg-rose-950/30";
+                    individualDel.onclick = () => { db.collection("camping_items").doc(todo.id).delete(); };
+                    tdAction.appendChild(individualDel);
+
+                    tr.appendChild(tdCheck); tr.appendChild(tdText); tr.appendChild(tdFamily); tr.appendChild(tdAction);
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            const total = currentTabTodos.length;
+            const completed = completedItems.length;
+            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('progressText').innerText = `${percent}% done`;
+        }
+
+        // 3. Document Action Elements Interceptors
+        document.getElementById('todoForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('itemInput');
+            const familyCategory = document.getElementById('familySelect').value;
+            
+            db.collection("camping_items").add({
+                text: input.value.trim(),
+                completed: false,
+                category: familyCategory,
+                listKey: currentActiveTab,
+                orderWeight: 99, 
+                createdAt: Date.now()
+            });
+            input.value = ''; input.blur();
+        });
+
+        function submitNewTab() {
+            const modalInput = document.getElementById('newTabNameInput');
+            const name = modalInput.value.trim();
+            if (!name) return;
+            const sanitizedKey = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            
+            if (globalTabs.includes(sanitizedKey)) { alert("This category already exists!"); return; }
+            
+            globalTabs.push(sanitizedKey);
+            globalTabNames[sanitizedKey] = name;
+            currentActiveTab = sanitizedKey;
+            
+            db.collection("camping_config").doc("tabs").update({
+                lists: globalTabs,
+                listNames: globalTabNames
+            });
+            closeModal();
+        }
+
+        function openModal() { document.getElementById('customTabModal').classList.remove('hidden'); document.getElementById('newTabNameInput').focus(); }
+        function closeModal() { document.getElementById('customTabModal').classList.add('hidden'); document.getElementById('newTabNameInput').value = ''; }
+    </script>
+</body>
+</html>
